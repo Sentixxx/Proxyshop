@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+# psd files
+*.psd
+
+#MacOS
+.DS_Store
+
 # Distribution / packaging
 .Python
 build/
@@ -172,6 +178,8 @@ cython_debug/
 /plugins/*
 !/plugins/Investigamer
 !/plugins/SilvanMTG
+!/plugins/STMTG
+/plugins/*/templates/*
 /plugins/*/config_ini
 # PSD templates directories
 /templates/*
