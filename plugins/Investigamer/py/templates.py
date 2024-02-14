@@ -13,8 +13,9 @@ from src import CFG, ENV
 from src.enums.layers import LAYERS
 import src.helpers as psd
 from src.templates import TransformMod, NormalTemplate, ExtendedMod
-from . import pencilsketch, sketch
 
+# Plugin Imports
+from .actions import sketch, pencilsketch
 
 """
 * Template Classes
@@ -232,6 +233,7 @@ class ColorshiftedTemplate (NormalTemplate):
     """
 
     def collector_info(self):
+
         # Artist and set layer
         artist_layer = psd.getLayer(LAYERS.ARTIST, self.legal_group)
         psd.replace_text(artist_layer, "Artist", self.layout.artist)

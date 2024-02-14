@@ -22,7 +22,6 @@ from src.enums.settings import (
     CollectorMode)
 from src.frame_logic import is_multicolor_string
 from src.helpers import get_line_count, LayerEffects
-from src.layouts import TokenLayout
 from src.templates._core import NormalTemplate
 from src.templates._cosmetic import ExtendedMod, FullartMod, NyxMod, VectorBorderlessMod, CompanionMod
 from src.templates._vector import VectorTemplate
@@ -37,13 +36,12 @@ from src.text_layers import (
 from src.enums.layers import LAYERS
 import src.helpers as psd
 
-
 """
 * Extendable Templates
 """
 
 
-class M15Template (NyxMod, CompanionMod, NormalTemplate):
+class M15Template(NyxMod, CompanionMod, NormalTemplate):
     """Standard M15 Template
 
     Adds:
@@ -62,7 +60,7 @@ with certain features enabled or disabled.
 """
 
 
-class FullartTemplate (FullartMod, M15Template):
+class FullartTemplate(FullartMod, M15Template):
     """Fullart treatment for the Normal template. Adds translucent type bar and textbox."""
 
     """
@@ -102,7 +100,7 @@ class FullartTemplate (FullartMod, M15Template):
             psd.enable_layer_fx(self.divider_layer)
 
 
-class StargazingTemplate (FullartTemplate):
+class StargazingTemplate(FullartTemplate):
     """Stargazing template from 'Theros: Beyond Death' showcase cards. Always uses nyx backgrounds."""
     template_suffix = 'Stargazing'
 
@@ -159,7 +157,7 @@ class StargazingTemplate (FullartTemplate):
 """
 
 
-class ExtendedTemplate (ExtendedMod, M15Template):
+class ExtendedTemplate(ExtendedMod, M15Template):
     """
     * An extended-art version of the normal template.
     * Empty edge outside the art reference is always content aware filled.
@@ -203,7 +201,7 @@ class ExtendedTemplate (ExtendedMod, M15Template):
                 psd.enable_layer_fx(self.divider_layer)
 
 
-class InventionTemplate (FullartMod, NormalTemplate):
+class InventionTemplate(FullartMod, NormalTemplate):
     """Kaladesh Invention template. Uses either Bronze or Silver frame layers depending on setting."""
     template_suffix = 'Masterpiece'
 
@@ -230,7 +228,7 @@ class InventionTemplate (FullartMod, NormalTemplate):
         return self.twins
 
 
-class ExpeditionTemplate (FullartMod, NormalTemplate):
+class ExpeditionTemplate(FullartMod, NormalTemplate):
     """Zendikar Rising Expedition template. Masks pinlines for legendary cards, has a single static background layer,
     doesn't support color indicator, companion, or nyx layers.
     """
@@ -259,12 +257,12 @@ class ExpeditionTemplate (FullartMod, NormalTemplate):
         # No Creature-specific rules text
         self.text.append(
             FormattedTextArea(
-                layer = self.text_layer_rules,
-                contents = self.layout.oracle_text,
-                flavor = self.layout.flavor_text,
-                reference = self.textbox_reference,
-                divider = self.divider_layer,
-                centered = self.is_centered))
+                layer=self.text_layer_rules,
+                contents=self.layout.oracle_text,
+                flavor=self.layout.flavor_text,
+                reference=self.textbox_reference,
+                divider=self.divider_layer,
+                centered=self.is_centered))
 
         # Add PT for Creature
         if self.is_creature:
@@ -289,12 +287,12 @@ class ExpeditionTemplate (FullartMod, NormalTemplate):
         psd.enable_mask(self.pinlines_layer.parent)
 
 
-class SnowTemplate (NormalTemplate):
+class SnowTemplate(NormalTemplate):
     """A snow template with textures from Kaldheim's snow cards."""
     template_suffix = 'Snow'
 
 
-class MiracleTemplate (NyxMod, NormalTemplate):
+class MiracleTemplate(NyxMod, NormalTemplate):
     """A template for miracle cards introduced in Avacyn Restored."""
 
     # Static Properties
@@ -302,7 +300,7 @@ class MiracleTemplate (NyxMod, NormalTemplate):
     is_vehicle = False
 
 
-class ClassicTemplate (NormalTemplate):
+class ClassicTemplate(NormalTemplate):
     """A template for 7th Edition frame. Lacks some of the Normal Template features."""
     frame_suffix = 'Classic'
 
@@ -414,6 +412,88 @@ class ClassicTemplate (NormalTemplate):
         return psd.getLayer(LAYERS.EXTENDED, LAYERS.MASKS)
 
     """
+    * Layout Data Methods
+    """
+
+    def process_layout_data(self) -> None:
+        """Remove rarity letter from collector data."""
+        super().process_layout_data()
+        self.layout.collector_data = self.layout.collector_data[:-2] if (
+                '/' in self.layout.collector_data
+        ) else self.layout.collector_data[2:]
+
+    """
+    * Collector Info Methods
+    """
+
+    def collector_info(self) -> None:
+        """Format and add the collector info at the bottom."""
+
+        # Which collector info mode?
+        if CFG.collector_mode in [
+            CollectorMode.Default, CollectorMode.Modern
+        ] and self.layout.collector_data:
+            layers = self.collector_info_authentic()
+        elif CFG.collector_mode == CollectorMode.ArtistOnly:
+            layers = self.collector_info_artist_only()
+        else:
+            layers = self.collector_info_basic()
+
+        # Shift collector text
+        if self.is_align_collector_left:
+            [psd.align_left(n, ref=self.collector_reference.dims) for n in layers]
+
+    def collector_info_basic(self) -> list[ArtLayer]:
+        """Called to generate basic collector info."""
+
+        # Get artist and info layers
+        artist = psd.getLayer(LAYERS.ARTIST, self.legal_group)
+        info = psd.getLayer(LAYERS.SET, self.legal_group)
+
+        # Fill optional promo star
+        if self.is_collector_promo:
+            psd.replace_text(info, "•", MagicIcons.COLLECTOR_STAR)
+
+        # Apply the collector info
+        if self.layout.lang != 'en':
+            psd.replace_text(info, 'EN', self.layout.lang.upper())
+        psd.replace_text(artist, "Artist", self.layout.artist)
+        psd.replace_text(info, 'SET', self.layout.set)
+        return [artist, info]
+
+    def collector_info_authentic(self) -> list[ArtLayer]:
+        """Classic presents authentic collector info differently."""
+
+        # Hide basic 'Set' layer
+        psd.getLayer(LAYERS.SET, self.legal_group).visible = False
+
+        # Get artist and info layers, reveal info layer
+        artist = psd.getLayer(LAYERS.ARTIST, self.legal_group)
+        info = psd.getLayer(LAYERS.COLLECTOR, self.legal_group)
+        info.visible = True
+
+        # Fill optional promo star
+        if self.is_collector_promo:
+            psd.replace_text(info, "•", MagicIcons.COLLECTOR_STAR)
+
+        # Apply the collector info
+        psd.replace_text(artist, 'Artist', self.layout.artist)
+        psd.replace_text(info, 'SET', self.layout.set)
+        psd.replace_text(info, 'NUM', self.layout.collector_data)
+        return [artist, info]
+
+    def collector_info_artist_only(self) -> list[ArtLayer]:
+        """Called to generate 'Artist Only' collector info."""
+
+        # Collector layers
+        artist = psd.getLayer(LAYERS.ARTIST, self.legal_group)
+        psd.getLayer(LAYERS.SET, self.legal_group).visible = False
+
+        # Apply the collector info
+        psd.replace_text(artist, "Artist", self.layout.artist)
+        return [artist]
+
+    """
     * Frame Layer Methods
     """
 
@@ -435,7 +515,6 @@ class ClassicTemplate (NormalTemplate):
 
         # Make Extended Art modifications
         if self.is_extended:
-
             # Copy extended mask to Border
             psd.copy_layer_mask(self.border_mask, self.border_group)
 
@@ -447,78 +526,26 @@ class ClassicTemplate (NormalTemplate):
     * Text Layer Methods
     """
 
-    def collector_info_basic(self) -> None:
-        """Called to generate basic collector info."""
-
-        # Artist and set layers
-        artist = psd.getLayer(LAYERS.ARTIST, self.legal_group)
-        info = psd.getLayer(LAYERS.SET, self.legal_group)
-
-        # Disable Set layer if Artist Only mode is enabled
-        if CFG.collector_mode == CollectorMode.ArtistOnly:
-            info.visible = False
-            return
-
-        # Fill optional collector star
-        if self.is_collector_promo:
-            psd.replace_text(info, "•", MagicIcons.COLLECTOR_STAR)
-
-        # Fill language, artist, and set
-        if self.layout.lang != 'en':
-            psd.replace_text(info, 'EN', self.layout.lang.upper())
-        psd.replace_text(artist, "Artist", self.layout.artist)
-        psd.replace_text(info, 'SET', self.layout.set)
-
-        # Align collector info to the left
-        if self.is_align_collector_left:
-            psd.align_left(artist, ref=self.collector_reference.dims)
-            psd.align_left(info, ref=self.collector_reference.dims)
-
-    def collector_info_authentic(self) -> None:
-        """Classic presents authentic collector info differently."""
-
-        # Hide basic 'Set' layer
-        psd.getLayer(LAYERS.SET, self.legal_group).visible = False
-
-        # Get artist and collector info layer, reveal info layer
-        artist = psd.getLayer(LAYERS.ARTIST, self.legal_group)
-        info = psd.getLayer(LAYERS.COLLECTOR, self.legal_group)
-        info.visible = True
-
-        # Establish the collector number
-        number = self.layout.collector_data[:-2] if (
-            '/' in self.layout.collector_data
-        ) else self.layout.collector_data[2:]
-
-        # Apply the collector info
-        psd.replace_text(artist, 'Artist', self.layout.artist)
-        psd.replace_text(info, 'SET', self.layout.set)
-        psd.replace_text(info, 'NUM', number)
-
-        # Align collector info to the left
-        if self.is_align_collector_left:
-            psd.align_left(artist, ref=self.collector_reference.dims)
-            psd.align_left(info, ref=self.collector_reference.dims)
-
     def rules_text_and_pt_layers(self):
         """Does not require a separate text area definition for Creature cards."""
 
         # Add rules text
         self.text.append(
             FormattedTextArea(
-                layer = self.text_layer_rules,
-                contents = self.layout.oracle_text,
-                flavor = self.layout.flavor_text,
-                centered = self.is_centered,
-                reference = self.textbox_reference,
-                divider = self.divider_layer))
+                layer=self.text_layer_rules,
+                contents=self.layout.oracle_text,
+                flavor=self.layout.flavor_text,
+                centered=self.is_centered,
+                reference=self.textbox_reference,
+                divider=self.divider_layer))
 
         # Add Power / Toughness
         if self.is_creature:
             self.text.append(
                 TextField(
-                    layer = self.text_layer_pt,
-                    contents = f"{self.layout.power}/{self.layout.toughness}"))
+                    layer=self.text_layer_pt,
+                    contents=f'{self.layout.power}/'
+                             f'{self.layout.toughness}'))
 
     """
     * Hook Methods
@@ -535,7 +562,7 @@ class ClassicTemplate (NormalTemplate):
 """
 
 
-class EtchedTemplate (VectorTemplate):
+class EtchedTemplate(VectorTemplate):
     """
     Etched template first introduced in Commander Legends. Uses pinline colors for the background,
     except for Artifact cards. Uses pinline colors for the textbox always. No hollow crown, no companion or
@@ -615,7 +642,7 @@ class EtchedTemplate (VectorTemplate):
         psd.getLayer(f"{LAYERS.LEGENDARY} {LAYERS.SHADOWS}").visible = True
 
 
-class ClassicRemasteredTemplate (VectorTransformMod, VectorTemplate):
+class ClassicRemasteredTemplate(VectorTransformMod, VectorTemplate):
     """
     Based on iDerp's Classic Remastered template, modified to work with Proxyshop, colored pinlines added for
     land generation. PT box added for creatures. Does not support Nyx or Companion layers.
@@ -791,7 +818,7 @@ class ClassicRemasteredTemplate (VectorTransformMod, VectorTemplate):
         """Support alternate reference for flipside PT."""
         return psd.getLayer(
             f'{LAYERS.PT_REFERENCE} Flip' if (
-                self.is_transform and self.is_front and self.is_flipside_creature
+                    self.is_transform and self.is_front and self.is_flipside_creature
             ) else LAYERS.PT_REFERENCE, self.text_group)
 
     @auto_prop_cached
@@ -832,7 +859,7 @@ class ClassicRemasteredTemplate (VectorTransformMod, VectorTemplate):
         pass
 
 
-class UniversesBeyondTemplate (VectorTransformMod, VectorTemplate):
+class UniversesBeyondTemplate(VectorTransformMod, VectorTemplate):
     """
     Template used for crossover sets like WH40K, Transformers, Street Fighter, etc.
     This template is built using the Silvan style of creating vector shapes and applying the colors
@@ -946,7 +973,7 @@ class UniversesBeyondTemplate (VectorTransformMod, VectorTemplate):
         psd.getLayer(LAYERS.BACK, self.textbox_group).visible = True
 
 
-class LOTRTemplate (VectorTemplate):
+class LOTRTemplate(VectorTemplate):
     """
     * Lord of the Rings template introduced in Lord of The Rings: Tales of Middle Earth.
     * Credit to Tupinambá (Pedro Neves) for the master template
@@ -1049,7 +1076,7 @@ class LOTRTemplate (VectorTemplate):
         self.crown_group.visible = True
 
 
-class BorderlessVectorTemplate (VectorBorderlessMod, VectorMDFCMod, VectorTransformMod, VectorTemplate):
+class BorderlessVectorTemplate(VectorBorderlessMod, VectorMDFCMod, VectorTransformMod, VectorTemplate):
     """Borderless template first used in the Womens Day Secret Lair, redone with vector shapes."""
 
     def __init__(self, layout, **kwargs):
@@ -1252,7 +1279,7 @@ class BorderlessVectorTemplate (VectorBorderlessMod, VectorMDFCMod, VectorTransf
         if self.is_textless:
             # Textless / Textless Transform
             return f"{self.size} {LAYERS.TRANSFORM}" if (
-                self.is_transform or self.is_mdfc
+                    self.is_transform or self.is_mdfc
             ) else self.size
         if self.is_transform and self.is_front:
             # Size TF Front
@@ -1277,11 +1304,6 @@ class BorderlessVectorTemplate (VectorBorderlessMod, VectorMDFCMod, VectorTransf
         if bool(CFG.get_setting(section="FRAME", key="Textless", default=False)):
             return False
         return super().is_basic_land
-
-    @auto_prop_cached
-    def is_token(self) -> bool:
-        """Return True if this is a Token card."""
-        return bool(isinstance(self.layout, TokenLayout))
 
     @auto_prop_cached
     def is_textless(self) -> bool:
@@ -1313,9 +1335,7 @@ class BorderlessVectorTemplate (VectorBorderlessMod, VectorMDFCMod, VectorTransf
                     BorderlessTextbox.Automatic,
                     BorderlessTextbox.Medium,
                     BorderlessTextbox.Short
-                ]
-            )
-        )
+                ]))
 
     @auto_prop_cached
     def is_pt_enabled(self) -> bool:
@@ -1500,12 +1520,12 @@ class BorderlessVectorTemplate (VectorBorderlessMod, VectorMDFCMod, VectorTransf
         if self.is_creature:
             # Is a creature, Flipside P/T?
             return LAYERS.RULES_TEXT_CREATURE_FLIP if (
-                self.is_transform and self.is_flipside_creature
+                    self.is_transform and self.is_flipside_creature
             ) else LAYERS.RULES_TEXT_CREATURE
 
         # Not a creature, Flipside P/T?
         return LAYERS.RULES_TEXT_NONCREATURE_FLIP if (
-            self.is_transform and self.is_flipside_creature
+                self.is_transform and self.is_flipside_creature
         ) else LAYERS.RULES_TEXT_NONCREATURE
 
     @auto_prop_cached
@@ -1719,16 +1739,16 @@ class BorderlessVectorTemplate (VectorBorderlessMod, VectorMDFCMod, VectorTransf
         # Establish whether this is a textless creature render with no symbol
         self.text.extend([
             FormattedTextField(
-                layer = self.text_layer_mana,
-                contents = self.layout.mana_cost
+                layer=self.text_layer_mana,
+                contents=self.layout.mana_cost
             ),
             ScaledTextField(
-                layer = self.text_layer_type,
+                layer=self.text_layer_type,
                 # Add Power/Toughness if rendering textless creature WITH symbol
-                contents = f"{self.layout.type_line} — {self.layout.power}/{self.layout.toughness}" if
+                contents=f"{self.layout.type_line} — {self.layout.power}/{self.layout.toughness}" if
                 self.is_creature and not self.is_pt_enabled else self.layout.type_line,
                 # Use PT box as right reference if rendering textless creature WITHOUT symbol
-                reference = psd.getLayer(LAYERS.PT_BOX, [self.pt_group, LAYERS.SHAPE])
+                reference=psd.getLayer(LAYERS.PT_BOX, [self.pt_group, LAYERS.SHAPE])
                 if self.is_textless and self.is_pt_enabled else self.type_reference
             )
         ])
@@ -1736,19 +1756,25 @@ class BorderlessVectorTemplate (VectorBorderlessMod, VectorMDFCMod, VectorTransf
         # Add nickname or regular name
         self.text.append(
             ScaledTextField(
-                layer = self.text_layer_name,
-                contents = self.layout.name,
-                reference = self.name_reference
+                layer=self.text_layer_name,
+                contents=self.layout.name,
+                reference=self.name_reference
             ) if not self.is_nickname else
             ScaledWidthTextField(
-                layer = self.text_layer_name,
-                contents = self.layout.name,
-                reference = self.nickname_shape
+                layer=self.text_layer_name,
+                contents=self.layout.name,
+                reference=self.nickname_shape
             ))
 
     def rules_text_and_pt_layers(self) -> None:
         """Skip this step for 'Textless' renders."""
         if self.is_textless:
+            if self.is_pt_enabled:
+                self.text.append(
+                    TextField(
+                        layer=self.text_layer_pt,
+                        contents=f'{self.layout.power}/'
+                                 f'{self.layout.toughness}'))
             return
         super().rules_text_and_pt_layers()
 
@@ -1770,10 +1796,6 @@ class BorderlessVectorTemplate (VectorBorderlessMod, VectorMDFCMod, VectorTransf
                 layer=self.text_layer_pt,
                 ref=psd.getLayer(LAYERS.PT_BOX, [
                     self.pt_group, LAYERS.SHAPE]))
-            self.text.append(
-                TextField(
-                    layer=self.text_layer_pt,
-                    contents=f"{self.layout.power}/{self.layout.toughness}"))
             return
 
         # Otherwise just shift the symbol over
